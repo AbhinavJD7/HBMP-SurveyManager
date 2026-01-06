@@ -57,8 +57,9 @@ const HbmpFormsGenerator = () => {
             let response;
             let data;
 
-            // Try direct connection first
-            try {
+            // Use Vercel API proxy for production, direct connection for localhost
+            if (isLocalhost) {
+                // Localhost: try direct connection (will likely fail with CORS)
                 response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {
@@ -66,52 +67,24 @@ const HbmpFormsGenerator = () => {
                     },
                     body: JSON.stringify(payload),
                 });
-
-                if (response.ok) {
-                    data = await response.json();
-                } else {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-            } catch (directError) {
-                // If direct connection fails (likely CORS), use proxy for localhost
-                if (isLocalhost && (directError.message.includes('fetch') || directError.message.includes('CORS'))) {
-                    // Try local proxy first (if running), then fallback to online proxy
-                    const localProxyUrl = `http://localhost:3001/proxy?url=${encodeURIComponent(apiUrl)}`;
-                    const onlineProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
-
-                    try {
-                        // Try local proxy first
-                        response = await fetch(localProxyUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(payload),
-                        });
-                    } catch (localProxyError) {
-                        // Fallback to online proxy
-                        response = await fetch(onlineProxyUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(payload),
-                        });
-                    }
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(errorText || `HTTP ${response.status}: ${response.statusText}`);
-                    }
-
-                    data = await response.json();
-                } else {
-                    throw directError;
-                }
+                data = await response.json();
+            } else {
+                // Production (Vercel): use serverless function proxy
+                response = await fetch('/api/proxy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        googleScriptUrl: apiUrl,
+                        ...payload
+                    }),
+                });
+                data = await response.json();
             }
 
-            if (!response.ok) {
-                throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+            if (!response.ok || (data && !data.ok)) {
+                throw new Error(data?.message || `HTTP ${response.status}: ${response.statusText}`);
             }
 
             setResult(data);
