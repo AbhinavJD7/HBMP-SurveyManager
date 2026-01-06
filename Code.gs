@@ -632,6 +632,9 @@ function buildForm(meta, respondentDetails, questions) {
   // Increment version
   var newVersion = parseInt(meta.version) + 1;
   
+  // Construct spreadsheet URL
+  var spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/' + spreadsheet.getId() + '/edit';
+  
   return {
     formId: formId,
     editUrl: editUrl,
@@ -639,6 +642,7 @@ function buildForm(meta, respondentDetails, questions) {
     version: newVersion.toString(),
     createdAt: new Date().toISOString(),
     responseSpreadsheetId: spreadsheet.getId(),
+    responseSpreadsheetUrl: spreadsheetUrl,
     responseSheetName: responseSheetName
   };
 }
@@ -883,6 +887,7 @@ function handleGenerateForm(requestData) {
       formId: formData.formId,
       editUrl: formData.editUrl,
       publishedUrl: formData.publishedUrl,
+      spreadsheetUrl: formData.responseSpreadsheetUrl,
       version: formData.version,
       createdAt: formData.createdAt,
       stats: stats

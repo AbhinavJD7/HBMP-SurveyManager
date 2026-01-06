@@ -230,6 +230,19 @@ const HbmpFormsGenerator = () => {
                                     </a>
                                 </div>
                             )}
+                            {result.spreadsheetUrl && (
+                                <div style={styles.infoRow}>
+                                    <strong>Response Spreadsheet:</strong>{' '}
+                                    <a
+                                        href={result.spreadsheetUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={styles.link}
+                                    >
+                                        {result.spreadsheetUrl}
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     )}
 
