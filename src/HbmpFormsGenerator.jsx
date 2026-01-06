@@ -16,8 +16,10 @@
 
 import React, { useState } from 'react';
 
+// Hardcoded Google Apps Script Web App URL
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxjqaSUtxeZeGEdbyA-k1RdE51cOKG0eDLlZM4J1p3DhvX8mwbxSDEnTngBKR18c4hn/exec';
+
 const HbmpFormsGenerator = () => {
-    const [webAppUrl, setWebAppUrl] = useState('');
     const [secretToken, setSecretToken] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
@@ -28,10 +30,6 @@ const HbmpFormsGenerator = () => {
      */
     const callAPI = async (dryRun = false) => {
         // Validate inputs
-        if (!webAppUrl.trim()) {
-            setError('Please enter the Apps Script Web App URL');
-            return;
-        }
         if (!secretToken.trim()) {
             setError('Please enter the secret token');
             return;
@@ -42,10 +40,8 @@ const HbmpFormsGenerator = () => {
         setResult(null);
 
         try {
-            // Google Apps Script Web Apps have CORS limitations from localhost
-            // Try direct connection first, then fallback to CORS proxy
             const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            let apiUrl = webAppUrl.trim();
+            const apiUrl = GOOGLE_SCRIPT_URL;
 
             // Request payload
             const payload = {
@@ -114,6 +110,7 @@ const HbmpFormsGenerator = () => {
      * Clear results
      */
     const handleClear = () => {
+        setSecretToken('');
         setResult(null);
         setError(null);
     };
@@ -125,20 +122,6 @@ const HbmpFormsGenerator = () => {
             <div style={styles.form}>
                 <div style={styles.field}>
                     <label style={styles.label}>
-                        Apps Script Web App URL:
-                    </label>
-                    <input
-                        type="text"
-                        value={webAppUrl}
-                        onChange={(e) => setWebAppUrl(e.target.value)}
-                        placeholder="https://script.google.com/macros/s/..."
-                        style={styles.input}
-                        disabled={loading}
-                    />
-                </div>
-
-                <div style={styles.field}>
-                    <label style={styles.label}>
                         Secret Token:
                     </label>
                     <input
@@ -148,6 +131,7 @@ const HbmpFormsGenerator = () => {
                         placeholder="Enter your secret token"
                         style={styles.input}
                         disabled={loading}
+                        autoFocus
                     />
                 </div>
 
