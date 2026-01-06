@@ -1,0 +1,455 @@
+/**
+ * HBMP Forms Generator - React Component
+ * 
+ * This component provides a UI to trigger Google Form generation via the Apps Script Web App API.
+ * 
+ * USAGE:
+ * 1. Import this component in your React app
+ * 2. Set the Apps Script Web App URL and secret token
+ * 3. Click "Validate (Dry Run)" to test without creating a form
+ * 4. Click "Generate Form" to create the actual form
+ * 
+ * REQUIREMENTS:
+ * - React (hooks: useState)
+ * - No external dependencies (uses native fetch API)
+ */
+
+import React, { useState } from 'react';
+
+const HbmpFormsGenerator = () => {
+    const [webAppUrl, setWebAppUrl] = useState('');
+    const [secretToken, setSecretToken] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
+
+    /**
+     * Calls the Apps Script Web App API
+     */
+    const callAPI = async (dryRun = false) => {
+        // Validate inputs
+        if (!webAppUrl.trim()) {
+            setError('Please enter the Apps Script Web App URL');
+            return;
+        }
+        if (!secretToken.trim()) {
+            setError('Please enter the secret token');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+        setResult(null);
+
+        try {
+            // Google Apps Script Web Apps have CORS limitations from localhost
+            // Try direct connection first, then fallback to CORS proxy
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            let apiUrl = webAppUrl.trim();
+
+            // Request payload
+            const payload = {
+                action: 'generateForm',
+                dryRun: dryRun,
+                secret: secretToken,
+            };
+
+            let response;
+            let data;
+
+            // Try direct connection first
+            try {
+                response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (response.ok) {
+                    data = await response.json();
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (directError) {
+                // If direct connection fails (likely CORS), use proxy for localhost
+                if (isLocalhost && (directError.message.includes('fetch') || directError.message.includes('CORS'))) {
+                    // Try local proxy first (if running), then fallback to online proxy
+                    const localProxyUrl = `http://localhost:3001/proxy?url=${encodeURIComponent(apiUrl)}`;
+                    const onlineProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+
+                    try {
+                        // Try local proxy first
+                        response = await fetch(localProxyUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(payload),
+                        });
+                    } catch (localProxyError) {
+                        // Fallback to online proxy
+                        response = await fetch(onlineProxyUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(payload),
+                        });
+                    }
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(errorText || `HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    data = await response.json();
+                } else {
+                    throw directError;
+                }
+            }
+
+            if (!response.ok) {
+                throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            setResult(data);
+        } catch (err) {
+            setError(err.message || 'Failed to call API');
+            console.error('API Error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
+     * Handle dry run (validation only)
+     */
+    const handleDryRun = () => {
+        callAPI(true);
+    };
+
+    /**
+     * Handle form generation
+     */
+    const handleGenerate = () => {
+        callAPI(false);
+    };
+
+    /**
+     * Clear results
+     */
+    const handleClear = () => {
+        setResult(null);
+        setError(null);
+    };
+
+    return (
+        <div style={styles.container}>
+            <h2 style={styles.title}>HBMP Forms Generator</h2>
+
+            <div style={styles.form}>
+                <div style={styles.field}>
+                    <label style={styles.label}>
+                        Apps Script Web App URL:
+                    </label>
+                    <input
+                        type="text"
+                        value={webAppUrl}
+                        onChange={(e) => setWebAppUrl(e.target.value)}
+                        placeholder="https://script.google.com/macros/s/..."
+                        style={styles.input}
+                        disabled={loading}
+                    />
+                </div>
+
+                <div style={styles.field}>
+                    <label style={styles.label}>
+                        Secret Token:
+                    </label>
+                    <input
+                        type="password"
+                        value={secretToken}
+                        onChange={(e) => setSecretToken(e.target.value)}
+                        placeholder="Enter your secret token"
+                        style={styles.input}
+                        disabled={loading}
+                    />
+                </div>
+
+                <div style={styles.buttonGroup}>
+                    <button
+                        onClick={handleDryRun}
+                        disabled={loading}
+                        style={{ ...styles.button, ...styles.buttonSecondary }}
+                    >
+                        {loading ? 'Validating...' : 'Validate (Dry Run)'}
+                    </button>
+                    <button
+                        onClick={handleGenerate}
+                        disabled={loading}
+                        style={{ ...styles.button, ...styles.buttonPrimary }}
+                    >
+                        {loading ? 'Generating...' : 'Generate Form'}
+                    </button>
+                    {(result || error) && (
+                        <button
+                            onClick={handleClear}
+                            style={{ ...styles.button, ...styles.buttonClear }}
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Error Display */}
+            {error && (
+                <div style={styles.errorPanel}>
+                    <h3 style={styles.errorTitle}>Error</h3>
+                    <p style={styles.errorMessage}>{error}</p>
+                </div>
+            )}
+
+            {/* Result Display */}
+            {result && (
+                <div style={styles.resultPanel}>
+                    <h3 style={styles.resultTitle}>
+                        {result.ok ? '✅ Success' : '❌ Failed'}
+                    </h3>
+                    <p style={styles.message}>{result.message}</p>
+
+                    {result.ok && !result.dryRun && (
+                        <div style={styles.formInfo}>
+                            <div style={styles.infoRow}>
+                                <strong>Form ID:</strong> {result.formId || 'N/A'}
+                            </div>
+                            <div style={styles.infoRow}>
+                                <strong>Version:</strong> {result.version || 'N/A'}
+                            </div>
+                            <div style={styles.infoRow}>
+                                <strong>Created At:</strong> {result.createdAt || 'N/A'}
+                            </div>
+                            {result.editUrl && (
+                                <div style={styles.infoRow}>
+                                    <strong>Edit URL:</strong>{' '}
+                                    <a
+                                        href={result.editUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={styles.link}
+                                    >
+                                        {result.editUrl}
+                                    </a>
+                                </div>
+                            )}
+                            {result.publishedUrl && (
+                                <div style={styles.infoRow}>
+                                    <strong>Published URL:</strong>{' '}
+                                    <a
+                                        href={result.publishedUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={styles.link}
+                                    >
+                                        {result.publishedUrl}
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {result.stats && (
+                        <div style={styles.stats}>
+                            <h4 style={styles.statsTitle}>Statistics</h4>
+                            <div style={styles.statsGrid}>
+                                <div style={styles.statItem}>
+                                    <strong>Sections:</strong> {result.stats.sectionsCount || 0}
+                                </div>
+                                <div style={styles.statItem}>
+                                    <strong>Questions:</strong> {result.stats.questionsCount || 0}
+                                </div>
+                                <div style={styles.statItem}>
+                                    <strong>Skipped:</strong> {result.stats.skippedCount || 0}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {result.stats && result.stats.errors && result.stats.errors.length > 0 && (
+                        <div style={styles.errors}>
+                            <h4 style={styles.errorsTitle}>Validation Errors</h4>
+                            <ul style={styles.errorsList}>
+                                {result.stats.errors.map((err, index) => (
+                                    <li key={index} style={styles.errorItem}>{err}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Styles
+const styles = {
+    container: {
+        maxWidth: '800px',
+        margin: '0 auto',
+        padding: '20px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    },
+    title: {
+        fontSize: '24px',
+        fontWeight: 'bold',
+        marginBottom: '20px',
+        color: '#333',
+    },
+    form: {
+        backgroundColor: '#f9f9f9',
+        padding: '20px',
+        borderRadius: '8px',
+        marginBottom: '20px',
+    },
+    field: {
+        marginBottom: '15px',
+    },
+    label: {
+        display: 'block',
+        marginBottom: '5px',
+        fontWeight: '500',
+        color: '#555',
+    },
+    input: {
+        width: '100%',
+        padding: '10px',
+        fontSize: '14px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        boxSizing: 'border-box',
+    },
+    buttonGroup: {
+        display: 'flex',
+        gap: '10px',
+        marginTop: '20px',
+    },
+    button: {
+        padding: '10px 20px',
+        fontSize: '14px',
+        fontWeight: '500',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        transition: 'background-color 0.2s',
+    },
+    buttonPrimary: {
+        backgroundColor: '#4285f4',
+        color: 'white',
+    },
+    buttonSecondary: {
+        backgroundColor: '#34a853',
+        color: 'white',
+    },
+    buttonClear: {
+        backgroundColor: '#ea4335',
+        color: 'white',
+    },
+    errorPanel: {
+        backgroundColor: '#fce8e6',
+        border: '1px solid #ea4335',
+        borderRadius: '8px',
+        padding: '15px',
+        marginBottom: '20px',
+    },
+    errorTitle: {
+        fontSize: '18px',
+        fontWeight: 'bold',
+        color: '#ea4335',
+        marginBottom: '10px',
+    },
+    errorMessage: {
+        color: '#c5221f',
+        margin: 0,
+    },
+    resultPanel: {
+        backgroundColor: '#e8f5e9',
+        border: '1px solid #34a853',
+        borderRadius: '8px',
+        padding: '20px',
+    },
+    resultTitle: {
+        fontSize: '20px',
+        fontWeight: 'bold',
+        marginBottom: '10px',
+        color: '#333',
+    },
+    message: {
+        fontSize: '16px',
+        marginBottom: '15px',
+        color: '#555',
+    },
+    formInfo: {
+        backgroundColor: 'white',
+        padding: '15px',
+        borderRadius: '4px',
+        marginBottom: '15px',
+    },
+    infoRow: {
+        marginBottom: '10px',
+        fontSize: '14px',
+        color: '#333',
+    },
+    link: {
+        color: '#4285f4',
+        textDecoration: 'none',
+        wordBreak: 'break-all',
+    },
+    stats: {
+        backgroundColor: 'white',
+        padding: '15px',
+        borderRadius: '4px',
+        marginBottom: '15px',
+    },
+    statsTitle: {
+        fontSize: '16px',
+        fontWeight: 'bold',
+        marginBottom: '10px',
+        color: '#333',
+    },
+    statsGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '10px',
+    },
+    statItem: {
+        fontSize: '14px',
+        color: '#555',
+    },
+    errors: {
+        backgroundColor: '#fff3cd',
+        border: '1px solid #ffc107',
+        borderRadius: '4px',
+        padding: '15px',
+        marginTop: '15px',
+    },
+    errorsTitle: {
+        fontSize: '16px',
+        fontWeight: 'bold',
+        marginBottom: '10px',
+        color: '#856404',
+    },
+    errorsList: {
+        margin: 0,
+        paddingLeft: '20px',
+    },
+    errorItem: {
+        fontSize: '14px',
+        color: '#856404',
+        marginBottom: '5px',
+    },
+};
+
+export default HbmpFormsGenerator;
+
